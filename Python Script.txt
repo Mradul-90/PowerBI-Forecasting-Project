@@ -1,0 +1,57 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
+
+# Load the dataset
+file_path = "Sample.xlsx"  # Update this if needed
+df = pd.read_excel(r"C:\Users\mradu\Desktop\New folder\Sample.xlsx", sheet_name="InputData")
+
+# Convert 'Year' column to datetime format
+df['Year'] = pd.to_datetime(df['Year'])
+df.set_index('Year', inplace=True)
+
+# Ensure 'CashBalance' is numeric and clean any formatting (e.g., commas or currency symbols)
+df['CashBalance'] = df['CashBalance'].replace('[\$,]', '', regex=True).astype(float)
+
+# Determine number of periods between start and end of data
+start_date = df.index.min()
+end_date = df.index.max()
+forecast_steps = len(df)  # Forecast for same number of steps as actual
+
+# Fit an ARIMA model
+model = ARIMA(df['CashBalance'], order=(5,1,0))  # (p,d,q) parameters can be tuned
+model_fit = model.fit()
+
+# Forecast from start to end date
+date_range = pd.date_range(start=start_date, periods=forecast_steps, freq='MS')
+forecast = model_fit.predict(start=1, end=forecast_steps)
+
+# Create DataFrame for comparison
+comparison_df = pd.DataFrame({
+    'Year': df.index[:forecast_steps],
+    'Actual_CashBalance': df['CashBalance'].values[:forecast_steps],
+    'Forecasted_CashBalance': forecast.values
+})
+
+# Display comparison DataFrame
+print("Actual vs Forecasted Cash Balance:")
+print(comparison_df)
+
+# Plot actual vs. forecasted values
+plt.figure(figsize=(10,5))
+plt.plot(comparison_df['Year'], comparison_df['Actual_CashBalance'], label='Actual')
+plt.plot(comparison_df['Year'], comparison_df['Forecasted_CashBalance'], label='Forecast', linestyle='dashed')
+plt.legend()
+plt.title("ARIMA Forecast vs Actual Cash Balance")
+plt.show()
+
+
+
+# Save comparison DataFrame to Excel
+output_file_path = r"C:\Users\mradu\Desktop\New folder\Forecast_Comparison.xlsx"  # Change path if needed
+comparison_df.to_excel(output_file_path, index=False)
+
+print(f"\nForecast comparison data has been saved to:\n{output_file_path}")

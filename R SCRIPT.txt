@@ -1,0 +1,167 @@
+# R version: 3.5.1
+# The script MUST contain a function named azureml_main
+# which is the entry point for this module.
+
+ 
+
+# Please note that functions dependant on X11 library
+# such as "View" are not supported because X11 library
+# is not pre-installed.
+
+ 
+
+# The entry point function MUST have two input arguments.
+# If the input port is not connected, the corresponding
+# dataframe argument will be null.
+#   Param<dataframe1>: a R DataFrame
+#   Param<dataframe2>: a R DataFrame
+azureml_main <- function(dataframe1, dataframe2){
+
+
+# Define the function to install the package if it's missing
+install_if_missing <- function(pkg) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg, repos = "http://cran.us.r-project.org")  # Use reliable global CRAN mirror
+    library(pkg, character.only = TRUE)
+  }
+}
+
+ 
+
+# Install and load 'forecast' package
+install_if_missing("forecast")
+
+ 
+
+# Install and load 'timeSeries' package
+install_if_missing("timeSeries")
+
+ 
+
+# 'stats' is part of base R, so no need to install it
+library(stats)
+
+ 
+
+# 'base' is also part of base R, no need to install it
+library(base)
+
+ 
+
+# Install and load 'xts' package
+install_if_missing("xts")
+
+ 
+
+ 
+
+ 
+
+dataset1 <- dataframe1 # class: data.frame
+
+ 
+
+ 
+
+f=24
+s=12
+y=2020
+n=7
+
+ 
+
+  #Arguments: 
+  #f(how many time units to forecast e.g. 24 for 2 years if monthly), 
+  #s(seasonal cycle, e.g. 4 if quarterly, 12 if monthly),
+  #m(how many series of data you would like to analyze, e.g. 1),
+  #y(the beginning year of the data series, e.g. 2009),
+  #n(the beginning day/week/month/quarter, e.g. 7 for July if monthly, 2 for 2ed quater if quarterly).
+
+ 
+
+ 
+
+ 
+
+  data = dataset1
+  results_all = NA
+  accuracy_all = NA
+
+ 
+
+ 
+
+    f = data[1, 1]
+    s = data[1, 2]
+    y = data[1, 3]
+    n = data[1, 4]
+    a = data[,5]
+
+
+    header = colnames(data)[5]
+    length=length(a)
+    x = ts(a[1:length],start= c(y, n),frequency=s)
+    arima = auto.arima(x, max.p=50,max.q=50,ic = "aic", trace = T, seasonal = T)
+    hw = HoltWinters(x)
+
+    coef_arima = arima$coef
+    coef_hw = hw$coef
+
+    df=sum(arima$arma[1:4])
+    r_arima = residuals(arima)
+    r_hw = residuals(hw)
+    box_arima = Box.test(r_arima,lag = df+5, type = "Ljung-Box", fitdf = df)
+    box_hw = Box.test(r_hw,lag = 15, type = "Ljung-Box")
+
+    acf(r_arima, main = paste("acf of residual_arima", toString(5)))
+    acf(r_hw, main = paste("acf of residual_hw", toString(5)))
+
+    fitted_arima = fitted(arima)
+    fitted_hw = fitted(hw)
+
+    accuracy_arima = accuracy(fitted_arima, x)
+    accuracy_hw = accuracy(fitted_hw, x)
+
+    forecasts_arima = forecast(arima,f)
+    forecasts_hw = forecast(hw,f)
+
+    fc_start = y + n/s + length/s
+    fc_y = floor(fc_start)
+    fc_n = round((fc_start - fc_y)*s, digits = 0)
+
+    mean_arima = ts(forecasts_arima$mean, start = c(fc_y,fc_n), frequency = 12)
+    mean_hw = ts(forecasts_hw$mean, start = c(fc_y,fc_n), frequency = 12)
+    fitted_arima2 = ts(fitted_arima, start = c(y,n), frequency = 12)
+    fitted_hw2 = ts(fitted_hw[,1], start = c(y+1,n), frequency = 12)
+    m_arima = rbind(as.xts(fitted_arima2),as.xts(mean_arima))
+    m_hw = rbind(as.xts(fitted_hw2),as.xts(mean_hw))
+
+    lower_arima = ts(forecasts_arima$lower, start = c(fc_y,fc_n), frequency = 12)
+    upper_arima = ts(forecasts_arima$upper, start = c(fc_y,fc_n), frequency = 12)
+    lower_hw = ts(forecasts_hw$lower, start = c(fc_y,fc_n), frequency = 12)
+    upper_hw = ts(forecasts_hw$upper, start = c(fc_y,fc_n), frequency = 12)
+    results = cbind(as.xts(x), m_arima, m_hw, as.xts(lower_arima[,2]), as.xts(lower_arima[,1]), as.xts(upper_arima), as.xts(lower_hw[,2]), as.xts(lower_hw[,1]), as.xts(upper_hw), 1,2)
+    colnames(results) = c(paste("Actual", header),paste("Arima.Projection"), paste("Winters.Projection"), paste("Arima.2.5th.Percentile"), paste("Arima.10th.Percentile"), paste("Arima.90th.Percentile"), paste("Arima.97.5th.Percentile"), paste("Winters.2.5th.Percentile"), paste("Winters.10th.Percentile"), paste("Winters.90th.Percentile"), paste("Winters.97.5th.Percentile"), paste("ME"),??paste("RMSE"))
+
+
+    results_all = cbind(results)
+    accuracy = rbind(NA, accuracy_arima, accuracy_hw)
+    rownames(accuracy) = c(header, paste("Arima.Error.", header), paste("Winters.Error.", header))
+
+    accuracy_all = rbind(accuracy_all, accuracy)
+
+ 
+
+    results_all2 <- data.frame(results_all)
+    accuracy_all2 <- data.frame(accuracy_all)
+
+
+
+
+ 
+
+ 
+
+  # Return datasets as a Named List
+  return(list(dataset1=results_all2, dataset2=accuracy_all2))
+}
