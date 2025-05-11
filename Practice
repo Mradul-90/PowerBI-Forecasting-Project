@@ -1,0 +1,29 @@
+.github/workflows/forecasting-workflow.yml
+name: Forecast Automation
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  forecast:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python libraries
+      run: |
+        pip install pandas numpy openpyxl statsmodels pmdarima
+
+    - name: Run Forecast Script
+      run: |
+        python forecasting.py
+
